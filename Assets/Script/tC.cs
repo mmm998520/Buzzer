@@ -34,59 +34,18 @@ public class tC : MonoBehaviour
         characterSize = transform.Find("Body").localScale;
     }
 
-    double t = 0;
-    double a = 10;
-    double v = 0;
-    double p = 0;
-
-    double ua = 10;
-    double uv = 0;
-    double up = 0;
-
-    double va = 10;
-    double vv = 0;
-    double vp = 0;
-
-    double Va = 10;
-    double Vpv = 0;
-    double Vnv = 0;
-    double Vp = 0;
-
     double Da = 10;
-    double Dp0 = 0;
-    double Dp1 = 0;
+    double DaChange = 0;//加速度的變化量，如恆量則為0加速度
+    double Dv = 0;
+    double Dp = 0;
+
     void Update()
     {
-        t += Time.deltaTime;
-        p = v * t + 0.5d * a * t * t;
-        print(t);
-        print(p);
-
-        uv += ua * Time.deltaTime;
-        up += uv * Time.deltaTime;
-        print(Time.time + " ,v=" + uv + ", p=" + up);
-
-        vv += va * Time.deltaTime;
-        vp += vv * Time.deltaTime + 0.5d * va * Time.deltaTime * Time.deltaTime;
-        print(Time.time + " ,v=" + vv + ", p=" + vp);
-
-        Vpv = Vnv;
-        Vnv += Va * Time.deltaTime;
-        Vp += (Vpv + Vnv) / 2 * Time.deltaTime + 0.5d * Va * Time.deltaTime * Time.deltaTime;
-        print(Time.time + " ,v=" + Vnv + ", p=" + Vp);
-
-        /*
-        Dp0 = Dp1;
-        Dp1 += (Dp1 - Dp0) * Time.deltaTime + 0.5d * Da *Time.deltaTime*Time.deltaTime;
-        print(Time.time + " ,v=" + (Dp1 - Dp0) + ", p=" + Dp1);
-        */
-
-        /*
-        VVpv = VVnv;
-        VVnv += VVa * Time.deltaTime;
-        VVp += VVnv * Time.deltaTime + 1 / 2 * VVa * Time.deltaTime * Time.deltaTime;
-        print(Time.time + " ,v=" + VVnv + ", p=" + VVp);
-        */
+        Dp += Time.deltaTime * (Dv + Time.deltaTime * Da * 0.5d);
+        Dv += Time.deltaTime * Da;
+        double DaNext = Da + DaChange;//加速度變化是因為質量or力發生變化，瞬間變化下不用Time.deltaTime
+        Dv += Time.deltaTime * (DaNext-Da)*0.5d;
+        Da = DaNext;
 
         getInput();
     }
