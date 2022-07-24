@@ -4,6 +4,7 @@ using UnityEngine;
 
 public class tC : MonoBehaviour
 {
+    [SerializeField] VelocityVerlet[] velocityVerlet = new VelocityVerlet[2] {new VelocityVerlet(0,0,0,0), new VelocityVerlet(0, 0, 0, 0) };
     [SerializeField] Vector3 velocity;
     Vector3 characterSize;
 
@@ -32,26 +33,29 @@ public class tC : MonoBehaviour
             checkPoses.Add(child.name, child);
         }
         characterSize = transform.Find("Body").localScale;
+        velocityVerlet[1].a = gravity;
+        velocityVerlet[1].aNext = gravity;
     }
 
-    double Da = 10;
-    double DaChange = 0;//加速度的變化量，如恆量則為0加速度
-    double Dv = 0;
-    double Dp = 0;
+    float a = 10;
+    float v0 = 0;
+    float t = 0;
+    float p = 0;
+
+    VelocityVerlet[] verlets = new VelocityVerlet[2] { new VelocityVerlet(10, 10, 0, 0), new VelocityVerlet(10, 10, 0, 0) };
 
     void Update()
     {
-        Dp += Time.deltaTime * (Dv + Time.deltaTime * Da * 0.5d);
-        Dv += Time.deltaTime * Da;
-        double DaNext = Da + DaChange;//加速度變化是因為質量or力發生變化，瞬間變化下不用Time.deltaTime
-        Dv += Time.deltaTime * (DaNext-Da)*0.5d;
-        Da = DaNext;
+        t += Time.deltaTime;
+        p = v0 * t + 0.5f * a * t * t;
+
+        verlets[0].addSpeed();
+        verlets[0].p += verlets[0].getDeltaP();
+
+        verlets[1].p += verlets[1].getDeltaP();
+        verlets[1].addSpeed();
 
         getInput();
-    }
-
-    void FixedUpdate()
-    {
         walk();
         chekOnLand();
         jump();
@@ -78,31 +82,6 @@ public class tC : MonoBehaviour
         inputAxis.x = horizontal;
         inputAxis.y = vertical;
         inputAxis = SquareToCircle(inputAxis);
-
-
-        if ((Input.GetButtonDown("Jump") || Input.GetKeyDown(KeyCode.LeftAlt))/* || advancePressJump*/)
-        {
-            if (jumpCount < 1)
-            {
-                pressJump = true;
-            }
-            /*else
-            {
-                pressJumpAdvanced = true;
-            }*/
-        }
-        /*if (Input.GetButtonDown("Jump"))
-        {
-            pressJump = true;
-        }
-        if (Input.GetButtonDown("Fly"))
-        {
-            pressFly = true;
-        }
-        if (Input.GetButtonDown("Dash"))
-        {
-            pressDash = true;
-        }*/
     }
 
     Vector2 SquareToCircle(Vector2 input)
@@ -124,58 +103,53 @@ public class tC : MonoBehaviour
         advanceisGround = Mathf.Min(hitDis) <= advanceisGroundRayLength;
 
         //print(Mathf.Min(hitDis) +","+ isGround);
-
-        velocity.y += gravity * Time.fixedDeltaTime;
-        if (velocity.y < fallDownSpeedLimit)
+        if (velocityVerlet[1].v < fallDownSpeedLimit)
         {
-            velocity.y = fallDownSpeedLimit;
+            velocityVerlet[1].v = fallDownSpeedLimit;
         }
         if (!advanceisGround)
         {
             //Debug.LogError("a");
         }
-        if (isGround && velocity.y < 0)
+        if (isGround && velocityVerlet[1].v < 0)
         {
             transform.Translate(Vector3.up * (-Mathf.Min(hitDis) + (characterSize.y / 2)));
-            velocity.y = 0;
+            velocityVerlet[1].v = 0;
             jumpCount = 0;
         }
     }
 
     void walk()
     {
-        float horizontalRaw = Input.GetAxisRaw("Horizontal");
-        if (horizontalRaw * velocity.x < 0)
+        transform.Translate(velocityVerlet[0].getDeltaP(), 0, 0);
+        if (inputAxis.x * velocityVerlet[0].v < 0)
         {
-            velocity.x = velocity.x - velocity.x / Mathf.Abs(velocity.x) * (walkAddSpeed + walkAddSpeed * walkReactivityPercent) * Time.fixedDeltaTime;
+            velocityVerlet[0].aNext = Mathf.Sign(inputAxis.x) * (walkAddSpeed + walkAddSpeed * walkReactivityPercent);
         }
-        else if (horizontalRaw * velocity.x > 0)
+        else if (inputAxis.x * velocity.x > 0)
         {
-            velocity.x = velocity.x + velocity.x / Mathf.Abs(velocity.x) * walkAddSpeed * Time.fixedDeltaTime;
+            velocityVerlet[0].aNext = Mathf.Sign(inputAxis.x) * walkAddSpeed;
         }
-        else if (horizontalRaw == 0)
+        else if (inputAxis.x == 0)
         {
-            float a = velocity.x / Mathf.Abs(velocity.x) * (walkAddSpeed + walkAddSpeed * walkSlowDownPercent) * Time.fixedDeltaTime;
-            if (velocity.x > a)
-            {
-                velocity.x = velocity.x - a;
-            }
-            else
-            {
-                velocity.x = 0;
-            }
+            velocityVerlet[0].aNext = Mathf.Sign(-velocity.x) * (walkAddSpeed + walkAddSpeed * walkReactivityPercent);
         }
         else if (velocity.x == 0)
         {
-            velocity.x = velocity.x + horizontalRaw / Mathf.Abs(horizontalRaw) * walkAddSpeed * Time.fixedDeltaTime;
+            velocityVerlet[0].aNext = Mathf.Sign(inputAxis.x) * walkAddSpeed;
         }
-        else
-        {
-            velocity.x = 0;
-        }
-        velocity.x = Mathf.Clamp(velocity.x, -maxWalkSpeed, maxWalkSpeed);
 
-        transform.Translate(Vector3.right * velocity.x * Time.fixedDeltaTime);
+        velocityVerlet[0].addSpeed();
+
+        if (inputAxis.x * velocityVerlet[0].v != 0)
+        {
+            velocityVerlet[0].v = Mathf.Clamp(velocityVerlet[0].v, -maxWalkSpeed, maxWalkSpeed);
+        }
+        else if (inputAxis.x == 0)
+        {
+            velocityVerlet[0].v = Mathf.Clamp(velocityVerlet[0].v, -maxWalkSpeed, maxWalkSpeed);
+            velocityVerlet[0].aNext = Mathf.Sign(-velocity.x) * (walkAddSpeed + walkAddSpeed * walkReactivityPercent);
+        }
     }
 
     void jump()
